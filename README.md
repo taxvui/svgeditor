@@ -139,7 +139,7 @@ VectorHub includes a dedicated, server-side batch importer (`scripts/import-font
 Set the source directory via the environment variable in `.env` or pass the path directly to the CLI:
 ```bash
 # In .env
-FA_PRO_DIR="/path/to/fontawesome-pro-svgs"
+SVG_FA_PRO_DIR="/path/to/fontawesome-pro-svgs"
 ```
 
 Expected directory hierarchy:
@@ -205,3 +205,46 @@ npm run import:fa -- --help
    ```bash
    npm run build
    ```
+
+
+## Secure Vercel configuration
+
+Configure these **server-only** variables in Vercel Settings > Environment Variables,
+for the environments you use. Redeploy after changing them. Never use VITE_ for
+private credentials and never commit a populated .env.
+
+| Variable | Value |
+| --- | --- |
+| SVG_SUPABASE_URL | Your Supabase project URL |
+| SVG_SUPABASE_PUBLISHABLE_KEY | Publishable key for password sign-in (or SVG_SUPABASE_ANON_KEY) |
+| SVG_SUPABASE_SECRET_KEY | Server secret key (or SVG_SUPABASE_SERVICE_ROLE_KEY) |
+| SVG_ADMIN_EMAILS | Comma-separated email addresses of permitted administrators |
+| SVG_DATABASE_URL | Optional; the app uses Supabase REST, not a direct SQL connection |
+
+1. Rotate the Supabase secret previously committed to the public .env.example.
+   Removing it from the latest file does not revoke it or remove it from Git history.
+2. Run src/db/migrations/0001_init.sql followed by 0002_secure_api_access.sql
+   in your Supabase SQL Editor. The latter enables RLS and revokes browser access
+   to library tables. Service-role access is server-only.
+3. Create and confirm the administrator account in Supabase Authentication > Users,
+   then add its email to SVG_ADMIN_EMAILS. An empty list denies all admin access.
+4. Deploy and open /login. Sign in with that account's email and password.
+   There are no demo passwords or default administrator privileges.
+5. If the database is empty, use the authenticated admin sync action to copy the
+   repository's local icon dataset into Supabase. This is an explicit import step.
+
+All library reads and writes use Supabase when configured. Vercel/production
+never silently writes to its ephemeral local filesystem. Local development may
+use the sample database if Supabase is not configured. Login sessions use an
+HttpOnly, Secure (production), SameSite=Strict cookie, verified with Supabase on
+requests. Sessions expire with the Supabase access token; sign in again afterward.
+The API checks permissions independently of the UI. Configure Supabase Auth
+rate limits/CAPTCHA for your deployment as needed.
+
+In the SVG editor, Crop adjusts the viewBox and clips its display without deleting
+source shapes. Fit to content measures the artwork, includes stroke margins and
+optional padding. Center preserves canvas dimensions and shifts the viewBox
+origin to place the artwork at its center. Both apply to the complete drawing,
+including transformed groups, and are saved in undo/redo history and exports.
+Filter shadows and markers can extend beyond geometric bounds; use fit padding
+for those effects. The editor does not support selecting individual objects yet.

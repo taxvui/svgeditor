@@ -1,4 +1,4 @@
-import { SvgIcon } from '../types/icon';
+import { SvgIcon } from '../types/icon.js';
 
 const calculateBytes = (str: string): number => {
   return new TextEncoder().encode(str).length;

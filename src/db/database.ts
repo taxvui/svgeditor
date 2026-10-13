@@ -9,8 +9,8 @@ import {
   DbTag,
   DbSvgAssetTag,
   DbProfile,
-} from './schema';
-import { iconDataset } from '../data/iconDataset';
+} from './schema.js';
+import { iconDataset } from '../data/iconDataset.js';
 
 export interface DatabaseState {
   svg_assets: DbSvgAsset[];

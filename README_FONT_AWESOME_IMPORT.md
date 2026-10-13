@@ -55,12 +55,12 @@ You can configure the source directory via environment variable or CLI arguments
 
 | Variable | Description | Default |
 | :--- | :--- | :--- |
-| `FA_PRO_DIR` | Absolute or relative path to local Font Awesome Pro folder | `./assets/sample-fa-pro` |
+| `SVG_FA_PRO_DIR` | Absolute or relative path to local Font Awesome Pro folder | `./assets/sample-fa-pro` |
 | `SQL_HOST` / `SQL_DB_NAME` | Database connection variables (PostgreSQL) | Configured in server env |
 
 To set the directory in your `.env` file:
 ```bash
-FA_PRO_DIR="/path/to/my/fontawesome-pro-svgs"
+SVG_FA_PRO_DIR="/path/to/my/fontawesome-pro-svgs"
 ```
 
 ---

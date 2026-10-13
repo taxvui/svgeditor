@@ -15,9 +15,9 @@ import 'dotenv/config';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { dbStore } from '../src/db/database';
-import { sanitizeAndValidateSvg } from '../src/server/svgSecurity';
-import { getSupabaseClient } from '../src/db/supabaseClient';
+import { dbStore } from '../src/db/database.js';
+import { sanitizeAndValidateSvg } from '../src/server/svgSecurity.js';
+import { getSupabaseClient } from '../src/db/supabaseClient.js';
 
 interface CliArgs {
   dir: string;
@@ -44,7 +44,7 @@ const KNOWN_STYLES = new Set([
 
 function parseArgs(args: string[]): CliArgs {
   const result: CliArgs = {
-    dir: process.env.FA_PRO_DIR || './assets/sample-fa-pro',
+    dir: process.env.SVG_FA_PRO_DIR || './assets/sample-fa-pro',
     dryRun: false,
     batchSize: 50,
     resumeFile: './.import-cache/fa-import-resume.json',
@@ -85,7 +85,7 @@ Preserves original files, extracts styles, sanitizes SVGs, and prevents duplicat
 
 Options:
   --dir, -d <path>         Source directory containing Font Awesome SVG files.
-                           (Defaults to FA_PRO_DIR env var or ./assets/sample-fa-pro)
+                           (Defaults to SVG_FA_PRO_DIR env var or ./assets/sample-fa-pro)
   --dry-run, -n            Simulate import without writing to database.
   --batch-size, -b <num>   Number of files to process per transaction/save batch (default: 50).
   --resume-file, -r <path> Path to cache file tracking processed SVGs (default: ./.import-cache/fa-import-resume.json).

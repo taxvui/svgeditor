@@ -154,6 +154,13 @@ CREATE TABLE IF NOT EXISTS svg_asset_tags (
   PRIMARY KEY (asset_id, tag_id)
 );
 
+-- Compatibility with existing installations of the initial schema.
+ALTER TABLE public.svg_assets ADD COLUMN IF NOT EXISTS style TEXT;
+ALTER TABLE public.svg_assets ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'vectorhub-core';
+ALTER TABLE public.svg_assets ADD COLUMN IF NOT EXISTS content_hash TEXT;
+ALTER TABLE public.svg_assets ADD COLUMN IF NOT EXISTS is_pro BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.svg_assets ADD COLUMN IF NOT EXISTS storage_path TEXT;
+
 -- Indexes for high-performance directory querying & pagination
 CREATE INDEX IF NOT EXISTS idx_svg_assets_status_created ON svg_assets (status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_svg_assets_category ON svg_assets (category_id);
@@ -164,4 +171,21 @@ CREATE INDEX IF NOT EXISTS idx_svg_assets_content_hash ON svg_assets (content_ha
 CREATE INDEX IF NOT EXISTS idx_svg_assets_source ON svg_assets (source);
 CREATE INDEX IF NOT EXISTS idx_tags_slug ON tags (slug);
 CREATE INDEX IF NOT EXISTS idx_svg_asset_tags_tag ON svg_asset_tags (tag_id);
+
+-- All access goes through the server API, which checks administrator rights.
+-- Run after 0001_init.sql in the Supabase SQL Editor.
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.profiles FROM anon, authenticated;
+ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.categories FROM anon, authenticated;
+ALTER TABLE public.collections ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.collections FROM anon, authenticated;
+ALTER TABLE public.licenses ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.licenses FROM anon, authenticated;
+ALTER TABLE public.tags ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.tags FROM anon, authenticated;
+ALTER TABLE public.svg_assets ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.svg_assets FROM anon, authenticated;
+ALTER TABLE public.svg_asset_tags ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.svg_asset_tags FROM anon, authenticated;
 `;

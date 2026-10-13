@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
+  Crop,
+  AlignCenter,
   Code2,
   Download,
   Copy,
@@ -59,6 +61,7 @@ import {
   SvgCustomizationOptions,
 } from '../utils/svgExporter';
 import { normalizeSvgForPreview } from '../utils/svgNormalizer';
+import { cropSvg, fitSvgToContent, centerSvg, readViewBox, type SvgBox } from '../utils/svgGeometry';
 import { sanitizeSvgClient } from '../utils/svgSanitizer';
 import { navigateTo } from '../utils/router';
 import { useI18n } from '../i18n';
@@ -99,7 +102,7 @@ const COLOR_SWATCHES = [
 ];
 
 export const EditorPage: React.FC<EditorPageProps> = ({ initialIconId }) => {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const initialIcon = initialIconId ? getIconById(initialIconId) : iconDataset[0];
   const initialCode = initialIcon ? initialIcon.svgContent : iconDataset[0].svgContent;
 
@@ -124,6 +127,11 @@ export const EditorPage: React.FC<EditorPageProps> = ({ initialIconId }) => {
   const [flipY, setFlipY] = useState<boolean>(false);
   const [padding, setPadding] = useState<number>(0);
   const [colorReplacements, setColorReplacements] = useState<Record<string, string>>({});
+
+  const [geometryBusy, setGeometryBusy] = useState(false);
+  const [geometryError, setGeometryError] = useState('');
+  const [cropBox, setCropBox] = useState<SvgBox>({ x: 0, y: 0, width: 24, height: 24 });
+  const [cropPadding, setCropPadding] = useState(0);
 
   // Export Settings
   const [exportFormat, setExportFormat] = useState<ExportFormat>('svg');
@@ -205,6 +213,24 @@ export const EditorPage: React.FC<EditorPageProps> = ({ initialIconId }) => {
 
     return applySvgCustomizations(rawToTransform, customOptions);
   }, [baseSvgCode, validation, fillColor, strokeColor, strokeWidth, rotation, flipX, flipY, padding, colorReplacements]);
+
+  useEffect(() => {
+    try { setCropBox(readViewBox(customizedSvg)); } catch { /* Invalid code is reported by validation. */ }
+  }, [customizedSvg]);
+
+  const applyGeometry = async (operation: 'crop' | 'fit' | 'center') => {
+    setGeometryBusy(true); setGeometryError('');
+    try {
+      const source = sanitizeSvgClient(customizedSvg).cleanSvg;
+      const next = operation === 'crop' ? cropSvg(source, cropBox) : operation === 'fit' ? await fitSvgToContent(source, cropPadding) : await centerSvg(source);
+      const previous = history.slice(0, historyIndex + 1);
+      if (previous[previous.length - 1] !== customizedSvg) previous.push(customizedSvg);
+      previous.push(next);
+      setHistory(previous); setHistoryIndex(previous.length - 1); setBaseSvgCode(next);
+      resetDesignControls();
+    } catch { setGeometryError(t.geometryError); }
+    finally { setGeometryBusy(false); }
+  };
 
   // Inspect metrics of customized SVG
   const metrics: SvgMetrics = useMemo(() => {
@@ -433,7 +459,7 @@ export const EditorPage: React.FC<EditorPageProps> = ({ initialIconId }) => {
                 {t.editorHeading}
               </h1>
               <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 backdrop-blur-md">
-                Inspired by SVGViewer.dev
+                SVG Editor
               </span>
             </div>
             <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
@@ -456,7 +482,7 @@ export const EditorPage: React.FC<EditorPageProps> = ({ initialIconId }) => {
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium glass-btn rounded-xl transition-all cursor-pointer"
           >
             <Upload className="w-3.5 h-3.5 text-neutral-500" />
-            <span>Upload SVG</span>
+            <span>{language === 'vi' ? 'Mở tệp SVG' : 'Upload SVG'}</span>
           </button>
 
           <select
@@ -500,7 +526,7 @@ export const EditorPage: React.FC<EditorPageProps> = ({ initialIconId }) => {
                 title="Download SVG directly"
               >
                 <Download className="w-3.5 h-3.5 text-emerald-400 dark:text-emerald-500" />
-                <span>Download SVG</span>
+                <span>{t.downloadSvg}</span>
               </button>
               <button
                 onClick={() => setTopExportMenuOpen(!topExportMenuOpen)}
@@ -802,7 +828,7 @@ export const EditorPage: React.FC<EditorPageProps> = ({ initialIconId }) => {
                 }`}
               >
                 <Palette className="w-3.5 h-3.5 text-emerald-500" />
-                <span>Visual Designer</span>
+                <span>{t.tabDesign}</span>
               </button>
               <button
                 onClick={() => setActiveTab('code')}
@@ -813,7 +839,7 @@ export const EditorPage: React.FC<EditorPageProps> = ({ initialIconId }) => {
                 }`}
               >
                 <Code2 className="w-3.5 h-3.5 text-sky-500" />
-                <span>Markup Editor</span>
+                <span>{t.tabCode}</span>
               </button>
               <button
                 onClick={() => setActiveTab('optimizer')}
@@ -824,7 +850,7 @@ export const EditorPage: React.FC<EditorPageProps> = ({ initialIconId }) => {
                 }`}
               >
                 <Zap className="w-3.5 h-3.5 text-amber-500" />
-                <span>SVGO Optimizer</span>
+                <span>{t.tabOptimizer}</span>
                 {optimizationResult.percentageSaved > 0 && (
                   <span className="font-mono text-[10px] text-emerald-600 dark:text-emerald-400 tabular-nums px-1 rounded bg-emerald-500/10">
                     -{optimizationResult.percentageSaved}%
@@ -840,7 +866,7 @@ export const EditorPage: React.FC<EditorPageProps> = ({ initialIconId }) => {
                 }`}
               >
                 <Download className="w-3.5 h-3.5 text-indigo-500" />
-                <span>Export &amp; Convert</span>
+                <span>{t.tabExport}</span>
               </button>
             </div>
 
@@ -859,12 +885,26 @@ export const EditorPage: React.FC<EditorPageProps> = ({ initialIconId }) => {
           {/* ======================================================== */}
           {activeTab === 'design' && (
             <div className="space-y-4">
+              <div className="p-4 sm:p-5 glass-panel rounded-3xl space-y-3">
+                <h3 className="text-sm font-semibold flex items-center gap-2"><Crop className="w-4 h-4" />{t.cropHeading}</h3>
+                <p className="text-xs text-neutral-500">{t.cropDescription}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['x', 'y', 'width', 'height'] as const).map(key => <label key={key} className="text-xs">{key === 'width' ? t.cropWidth : key === 'height' ? t.cropHeight : key.toUpperCase()}<input type="number" step="any" value={cropBox[key]} className="glass-input rounded-lg p-2 w-full mt-1" onChange={event => setCropBox(box => ({ ...box, [key]: Number(event.target.value) }))} /></label>)}
+                </div>
+                <button disabled={geometryBusy || !validation.isValid} onClick={() => void applyGeometry('crop')} className="glass-btn px-3 py-2 rounded-xl text-xs disabled:opacity-50 w-full">{t.cropApply}</button>
+                <label className="block text-xs">{t.cropMargin}<input type="number" min="0" step="any" value={cropPadding} className="glass-input rounded-lg p-2 w-full mt-1" onChange={event => setCropPadding(Math.max(0, Number(event.target.value)))} /></label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button disabled={geometryBusy || !validation.isValid} onClick={() => void applyGeometry('fit')} className="glass-btn px-3 py-2 rounded-xl text-xs disabled:opacity-50">{t.cropFit}</button>
+                  <button disabled={geometryBusy || !validation.isValid} onClick={() => void applyGeometry('center')} className="glass-btn px-3 py-2 rounded-xl text-xs disabled:opacity-50 flex items-center justify-center gap-1"><AlignCenter className="w-4 h-4" />{t.centerObject}</button>
+                </div>
+                {geometryError && <p role="alert" className="text-xs text-red-600">{geometryError}</p>}
+              </div>
               {/* Orientation & Transformation Card */}
               <div className="p-4 sm:p-5 glass-panel liquid-sheen rounded-3xl space-y-4 shadow-sm">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-semibold text-neutral-900 dark:text-white flex items-center gap-1.5">
                     <RotateCw className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>Rotation &amp; Transformation</span>
+                    <span>{t.controlRotate}</span>
                   </h3>
                   <button
                     onClick={() => {
@@ -900,7 +940,7 @@ export const EditorPage: React.FC<EditorPageProps> = ({ initialIconId }) => {
                     }`}
                   >
                     <FlipHorizontal className="w-3.5 h-3.5" />
-                    <span>Flip X</span>
+                    <span>{t.controlFlipH}</span>
                   </button>
                   <button
                     onClick={() => setFlipY((prev) => !prev)}
@@ -909,14 +949,14 @@ export const EditorPage: React.FC<EditorPageProps> = ({ initialIconId }) => {
                     }`}
                   >
                     <FlipVertical className="w-3.5 h-3.5" />
-                    <span>Flip Y</span>
+                    <span>{t.controlFlipV}</span>
                   </button>
                 </div>
 
                 {/* Free angle slider */}
                 <div className="space-y-1 pt-1 border-t border-white/40 dark:border-white/10">
                   <div className="flex justify-between text-xs text-neutral-600 dark:text-neutral-300">
-                    <span>Fine-Tune Angle</span>
+                    <span>{t.controlRotate}</span>
                     <span className="font-mono tabular-nums">{rotation}°</span>
                   </div>
                   <input
@@ -935,7 +975,7 @@ export const EditorPage: React.FC<EditorPageProps> = ({ initialIconId }) => {
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-semibold text-neutral-900 dark:text-white flex items-center gap-1.5">
                     <Palette className="w-3.5 h-3.5 text-indigo-500" />
-                    <span>Color &amp; Stroke Overrides</span>
+                    <span>{t.controlFill} / {t.controlStroke}</span>
                   </h3>
                   <button
                     onClick={() => {
@@ -952,7 +992,7 @@ export const EditorPage: React.FC<EditorPageProps> = ({ initialIconId }) => {
                 {/* Fill Color Preset Strip */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between text-xs text-neutral-600 dark:text-neutral-300">
-                    <span>Global Fill Color:</span>
+                    <span>{t.controlFill}</span>
                     <span className="font-mono text-[11px]">{fillColor}</span>
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5">

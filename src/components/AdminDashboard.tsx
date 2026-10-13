@@ -27,6 +27,8 @@ import { formatBytes } from '../utils/svgExporter';
 import { normalizeSvgForPreview } from '../utils/svgNormalizer';
 import { navigateTo } from '../utils/router';
 import { iconDataset } from '../data/iconDataset';
+import { useI18n } from '../i18n';
+import { sessionChanged } from '../lib/adminSession';
 import { SvgIcon } from '../types/icon';
 
 interface AdminStats {
@@ -41,6 +43,7 @@ interface AdminStats {
 }
 
 export const AdminDashboard: React.FC = () => {
+  const { t } = useI18n();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [assets, setAssets] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
@@ -123,6 +126,7 @@ export const AdminDashboard: React.FC = () => {
       const safeJsonFetch = async (url: string) => {
         try {
           const r = await fetch(url);
+          if (r.status === 401 || r.status === 403) { sessionChanged(); return null; }
           const ct = r.headers.get('content-type') || '';
           if (r.ok && ct.includes('application/json')) {
             return await r.json();
@@ -151,24 +155,7 @@ export const AdminDashboard: React.FC = () => {
         });
         setAssets(uniqueAssets);
       } else {
-        const fallbackAssets = iconDataset.map((icon) => ({
-          id: icon.id,
-          name: icon.name,
-          slug: icon.slug,
-          description: `${icon.name} vector asset`,
-          svg_content: icon.svgContent,
-          thumbnail_path: `/thumbnails/${icon.slug}.svg`,
-          status: 'published',
-          style: icon.style || 'outline',
-          source: icon.collection || 'vectorhub-core',
-          is_pro: icon.is_pro || false,
-          created_at: icon.createdAt,
-          category: { name: icon.categorySlug, slug: icon.categorySlug },
-          collection: { name: icon.collection, slug: 'vectorhub-core', author: icon.author },
-          license: { name: icon.license, license_url: 'https://opensource.org/licenses/MIT' },
-          tags: icon.tags,
-        }));
-        setAssets(fallbackAssets as any);
+        setAssets([]);
       }
 
       if (catRes && Array.isArray(catRes)) setCategories(catRes);
@@ -667,14 +654,14 @@ export const AdminDashboard: React.FC = () => {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">
-              Operations &amp; Admin Studio
+              {t.adminHeading}
             </h1>
             <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 backdrop-blur-md">
-              Apple Liquid Glass
+              SVG Library
             </span>
           </div>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-            Manage vector assets, batch imports, security sanitization, and scientific integrations.
+            {t.adminSubheading}
           </p>
         </div>
 
@@ -1226,7 +1213,7 @@ export const AdminDashboard: React.FC = () => {
                 <div className="flex flex-col sm:flex-row items-center gap-6">
                   <div
                     className="w-28 h-28 p-2 rounded-lg bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 flex items-center justify-center text-neutral-900 dark:text-white"
-                    dangerouslySetInnerHTML={{ __html: chemicalResult.compound.svgContent }}
+                    dangerouslySetInnerHTML={{ __html: normalizeSvgForPreview(chemicalResult.compound.svgContent) }}
                   />
 
                   <div className="space-y-1.5 flex-1 text-xs">
@@ -1352,21 +1339,21 @@ export const AdminDashboard: React.FC = () => {
               <div className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200/70 dark:border-neutral-800 space-y-1.5">
                 <div className="text-neutral-500 font-medium">Supabase Project Endpoint</div>
                 <div className="font-mono text-neutral-900 dark:text-neutral-100 break-all select-all font-semibold">
-                  {supabaseStatus?.config?.supabaseUrl || 'https://ndssqnlwzhlpvzahktfl.supabase.co'}
+                  {supabaseStatus?.config?.supabaseUrl || 'Not configured'}
                 </div>
                 <div className="flex items-center gap-2 pt-1 text-[11px] text-emerald-600 dark:text-emerald-400">
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Secret Key &amp; Publishable Key verified</span>
+                  <span>{supabaseStatus?.config?.hasSecretKey && supabaseStatus?.config?.hasPublishableKey ? 'Environment keys configured' : 'Missing environment keys'}</span>
                 </div>
               </div>
 
               <div className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200/70 dark:border-neutral-800 space-y-1.5">
                 <div className="text-neutral-500 font-medium">PostgreSQL Direct TCP Connection</div>
                 <div className="font-mono text-neutral-700 dark:text-neutral-300 text-[11px] break-all">
-                  db.ndssqnlwzhlpvzahktfl.supabase.co:5432
+                  {supabaseStatus?.config?.databaseHost || 'Optional: SVG_DATABASE_URL'}
                 </div>
                 <div className="text-[11px] text-amber-600 dark:text-amber-400">
-                  Direct connection string has <span className="font-mono">[YOUR-PASSWORD]</span> placeholder. The app uses the Supabase Secret Key to query and sync without needing the raw password.
+                  The server uses SVG_SUPABASE_URL and SVG_SUPABASE_SECRET_KEY for database access.
                 </div>
               </div>
             </div>
@@ -1450,7 +1437,7 @@ export const AdminDashboard: React.FC = () => {
                   <span>{copiedSql ? 'Copied SQL!' : 'Copy SQL Migration DDL'}</span>
                 </button>
                 <a
-                  href="https://supabase.com/dashboard/project/ndssqnlwzhlpvzahktfl/sql/new"
+                  href="https://supabase.com/dashboard"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-200 dark:border-emerald-800"

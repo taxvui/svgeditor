@@ -18,8 +18,7 @@ import {
 } from 'lucide-react';
 import { AppRoute, navigateTo } from '../utils/router';
 import { IconCategory } from '../types/icon';
-import { auth, googleAuthProvider } from '../lib/firebase';
-import { signInWithPopup, signOut, User } from 'firebase/auth';
+import { useAdminSession, sessionChanged } from '../lib/adminSession';
 import { useI18n } from '../i18n';
 import { Language } from '../i18n/translations';
 import { useTheme, ACCENT_PALETTES, AccentColor } from '../lib/theme';
@@ -42,19 +41,10 @@ export const Header: React.FC<HeaderProps> = ({
   const mobileSearchInputRef = useRef<HTMLInputElement>(null);
   const preferencesRef = useRef<HTMLDivElement>(null);
 
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  const { profile: currentUser, loading: authLoading } = useAdminSession();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [prefDropdownOpen, setPrefDropdownOpen] = useState(false);
-
-  useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      setCurrentUser(user);
-      setAuthLoading(false);
-    });
-    return () => unsubscribe();
-  }, []);
 
   // Close menus on outside click
   useEffect(() => {
@@ -74,20 +64,11 @@ export const Header: React.FC<HeaderProps> = ({
     setPrefDropdownOpen(false);
   }, [currentRoute]);
 
-  const handleSignIn = async () => {
-    try {
-      await signInWithPopup(auth, googleAuthProvider);
-    } catch (err) {
-      console.error('Google sign-in error:', err);
-    }
-  };
-
+  const handleSignIn = () => navigateTo({ type: 'login' });
   const handleSignOut = async () => {
-    try {
-      await signOut(auth);
-    } catch (err) {
-      console.error('Sign-out error:', err);
-    }
+    await fetch('/api/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    sessionChanged();
+    navigateTo({ type: 'directory', category: 'all', page: 1 });
   };
 
   const handleNavCategory = (category: IconCategory) => {
@@ -172,7 +153,7 @@ export const Header: React.FC<HeaderProps> = ({
             <span>{t.navStudio}</span>
           </button>
 
-          <button
+          {currentUser?.role === 'admin' && <button
             onClick={handleNavAdmin}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg whitespace-nowrap transition-all cursor-pointer ${
               currentRoute.type === 'admin'
@@ -182,7 +163,7 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Layers className="w-3.5 h-3.5 text-indigo-500" />
             <span>{t.navAdmin}</span>
-          </button>
+          </button>}
         </nav>
 
         {/* Right: Search, Preferences (Lang + Accent), Theme, Auth */}
@@ -318,13 +299,9 @@ export const Header: React.FC<HeaderProps> = ({
             currentUser ? (
               <div className="hidden sm:flex items-center gap-1 pl-1 border-l border-slate-200 dark:border-white/10">
                 <div className="flex items-center gap-1.5 px-2 py-1 text-xs rounded-lg text-neutral-800 dark:text-neutral-200">
-                  {currentUser.photoURL ? (
-                    <img src={currentUser.photoURL} alt="User" className="w-4 h-4 rounded-full ring-1 ring-white/40" />
-                  ) : (
-                    <UserIcon className="w-3.5 h-3.5 text-neutral-500" />
-                  )}
+                  <UserIcon className="w-3.5 h-3.5 text-neutral-500" />
                   <span className="font-medium max-w-[70px] truncate text-[11px]">
-                    {currentUser.displayName || currentUser.email?.split('@')[0]}
+                    {currentUser.display_name || currentUser.email?.split('@')[0]}
                   </span>
                 </div>
                 <button
@@ -417,7 +394,7 @@ export const Header: React.FC<HeaderProps> = ({
             >
               {t.navStudio}
             </button>
-            <button
+            {currentUser?.role === 'admin' && <button
               onClick={handleNavAdmin}
               className={`p-2 text-xs text-left rounded-lg transition-all cursor-pointer ${
                 currentRoute.type === 'admin'
@@ -426,7 +403,7 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               {t.navAdmin}
-            </button>
+            </button>}
           </div>
 
           {/* User authentication in mobile drawer */}
@@ -434,13 +411,9 @@ export const Header: React.FC<HeaderProps> = ({
             {currentUser ? (
               <div className="flex items-center justify-between w-full">
                 <div className="flex items-center gap-2 text-xs">
-                  {currentUser.photoURL ? (
-                    <img src={currentUser.photoURL} alt="User" className="w-5 h-5 rounded-full" />
-                  ) : (
-                    <UserIcon className="w-4 h-4 text-neutral-500" />
-                  )}
+                  <UserIcon className="w-4 h-4 text-neutral-500" />
                   <span className="font-semibold text-neutral-800 dark:text-neutral-200 text-xs">
-                    {currentUser.displayName || currentUser.email}
+                    {currentUser.display_name || currentUser.email}
                   </span>
                 </div>
                 <button

@@ -1,6 +1,23 @@
 export type Language = 'vi' | 'en' | 'zh';
 
 export interface Translations {
+  authChecking: string;
+  adminLoginHeading: string;
+  adminLoginDescription: string;
+  authEmail: string;
+  authPassword: string;
+  authDenied: string;
+  authUnavailable: string;
+  cropHeading: string;
+  cropDescription: string;
+  cropWidth: string;
+  cropHeight: string;
+  cropApply: string;
+  cropMargin: string;
+  cropFit: string;
+  centerObject: string;
+  geometryError: string;
+
   // Common & Branding
   brandName: string;
   brandTagline: string;

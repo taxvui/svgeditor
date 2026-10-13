@@ -9,6 +9,7 @@ import { DirectoryPage } from './components/DirectoryPage';
 import { IconDetailPage } from './components/IconDetailPage';
 import { EditorPage } from './components/EditorPage';
 import { PortfolioPage } from './components/PortfolioPage';
+import { AdminAccess } from './components/AdminAccess';
 import { AdminDashboard } from './components/AdminDashboard';
 import { useAppRouter, navigateTo, formatRouteUrl } from './utils/router';
 import { getIconById } from './data/iconDataset';
@@ -128,7 +129,8 @@ export default function App() {
           <EditorPage initialIconId={currentRoute.iconId} />
         )}
 
-        {currentRoute.type === 'admin' && <AdminDashboard />}
+        {currentRoute.type === 'admin' && <AdminAccess><AdminDashboard /></AdminAccess>}
+        {currentRoute.type === 'login' && <AdminAccess />}
       </main>
 
       {/* Footer (Apple Liquid Glass Frosted Container) */}
@@ -200,7 +202,7 @@ export default function App() {
           </div>
 
           <div className="pt-4 border-t border-slate-200/80 dark:border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-neutral-400 dark:text-neutral-500">
-            <p>Crafted with Apple Liquid Glass aesthetic &amp; shadcn primitives. MIT License.</p>
+            <p>VectorHub · SVG tools · MIT License.</p>
             <div className="flex items-center gap-3 font-mono text-[11px]">
               <span>50+ SVGs</span>
               <span aria-hidden="true">·</span>

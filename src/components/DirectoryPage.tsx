@@ -287,7 +287,7 @@ export const DirectoryPage: React.FC<DirectoryPageProps> = ({
           <div>
             <div className="flex items-center gap-2 mb-2">
               <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 backdrop-blur-md">
-                Apple Liquid Glass
+                SVG Library
               </span>
               <span className="text-neutral-300 dark:text-neutral-700">·</span>
               <span className="text-xs text-neutral-500 dark:text-neutral-400">

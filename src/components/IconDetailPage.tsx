@@ -123,7 +123,7 @@ export const IconDetailPage: React.FC<IconDetailPageProps> = ({ iconId, iconSlug
     return (
       <div className="max-w-4xl mx-auto px-4 py-24 text-center space-y-4">
         <div className="w-10 h-10 mx-auto border-3 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
-        <p className="text-xs font-medium text-neutral-500">Loading Apple Liquid Glass vector inspector...</p>
+        <p className="text-xs font-medium text-neutral-500">Loading SVG preview...</p>
       </div>
     );
   }

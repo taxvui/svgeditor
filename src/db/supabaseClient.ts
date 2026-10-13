@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { dbStore } from './database';
-import { POSTGRES_MIGRATION_SQL } from './schema';
+import { dbStore } from './database.js';
+import { POSTGRES_MIGRATION_SQL } from './schema.js';
 
 export interface SupabaseConfigInfo {
   isConfigured: boolean;
@@ -14,12 +14,10 @@ export interface SupabaseConfigInfo {
 }
 
 function getCredentials() {
-  const url = process.env.SUPABASE_URL || '';
+  const url = process.env.SVG_SUPABASE_URL || '';
   const key =
-    process.env.SUPABASE_SECRET_KEY ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_PUBLISHABLE_KEY ||
-    process.env.SUPABASE_ANON_KEY ||
+    process.env.SVG_SUPABASE_SECRET_KEY ||
+    process.env.SVG_SUPABASE_SERVICE_ROLE_KEY ||
     '';
   return { url, key };
 }
@@ -47,10 +45,10 @@ export function getSupabaseClient(): SupabaseClient | null {
 }
 
 export function getSupabaseConfigInfo(): SupabaseConfigInfo {
-  const dbUrl = process.env.DATABASE_URL || '';
-  const url = process.env.SUPABASE_URL || '';
-  const secretKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-  const pubKey = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || '';
+  const dbUrl = process.env.SVG_DATABASE_URL || '';
+  const url = process.env.SVG_SUPABASE_URL || '';
+  const secretKey = process.env.SVG_SUPABASE_SECRET_KEY || process.env.SVG_SUPABASE_SERVICE_ROLE_KEY || '';
+  const pubKey = process.env.SVG_SUPABASE_PUBLISHABLE_KEY || process.env.SVG_SUPABASE_ANON_KEY || '';
 
   const requiresPassword = dbUrl.includes('[YOUR-PASSWORD]');
   let dbHost: string | null = null;
@@ -60,7 +58,7 @@ export function getSupabaseConfigInfo(): SupabaseConfigInfo {
   }
 
   return {
-    isConfigured: Boolean(url && (secretKey || pubKey)),
+    isConfigured: Boolean(url && secretKey),
     supabaseUrl: url || null,
     hasSecretKey: Boolean(secretKey),
     hasPublishableKey: Boolean(pubKey),
@@ -155,10 +153,10 @@ export async function checkSupabaseHealth(): Promise<SupabaseHealthCheck> {
     const { error: profErr } = await client.from('profiles').select('id').limit(1);
     if (!profErr) tablesStatus.profiles = true;
 
-    const allExist = tablesStatus.svg_assets && tablesStatus.categories && tablesStatus.collections;
+    const allExist = Object.values(tablesStatus).every(Boolean);
 
     return {
-      connected: true,
+      connected: Object.values(tablesStatus).some(Boolean),
       url: info.supabaseUrl,
       tablesStatus,
       remoteCounts,
@@ -233,79 +231,45 @@ export async function syncLocalDatabaseToSupabase(): Promise<SyncResult> {
   let assetsSynced = 0;
 
   try {
-    // 1. Sync Categories
-    const categories = dbStore.getCategories();
-    for (const cat of categories) {
-      const { error } = await client.from('categories').upsert(
-        {
-          name: cat.name,
-          slug: cat.slug,
-          description: cat.description || '',
-        },
-        { onConflict: 'slug' }
-      );
-      if (error) errors.push(`Category ${cat.slug}: ${error.message}`);
-      else categoriesSynced++;
+    const mappings: Record<string, Map<string, string>> = {};
+    for (const [table, rows, conflict] of [
+      ['categories', dbStore.getCategories(), 'slug'],
+      ['collections', dbStore.getCollections(), 'slug'],
+      ['licenses', dbStore.getLicenses(), 'name'],
+    ] as const) {
+      mappings[table] = new Map();
+      for (const row of rows) {
+        const { id, count: _count, ...fields } = row as any;
+        const { data, error } = await client.from(table).upsert(fields, { onConflict: conflict }).select('id').single();
+        if (error || !data) { errors.push(`${table}: synchronization failed`); continue; }
+        mappings[table].set(id, data.id);
+        if (table === 'categories') categoriesSynced++;
+        if (table === 'collections') collectionsSynced++;
+        if (table === 'licenses') licensesSynced++;
+      }
     }
-
-    // 2. Sync Collections
-    const collections = dbStore.getCollections();
-    for (const col of collections) {
-      const { error } = await client.from('collections').upsert(
-        {
-          name: col.name,
-          slug: col.slug,
-          description: col.description || '',
-          source_url: col.source_url || '',
-          author: col.author || 'VectorHub',
-        },
-        { onConflict: 'slug' }
-      );
-      if (error) errors.push(`Collection ${col.slug}: ${error.message}`);
-      else collectionsSynced++;
+    const tagIds = new Map<string, string>();
+    for (const tag of dbStore.getTags()) {
+      const { data, error } = await client.from('tags').upsert({ name: tag.name, slug: tag.slug }, { onConflict: 'slug' }).select('id').single();
+      if (error || !data) errors.push('Tag synchronization failed');
+      else tagIds.set(tag.name, data.id);
     }
-
-    // 3. Sync Licenses
-    const licenses = dbStore.getLicenses();
-    for (const lic of licenses) {
-      const { error } = await client.from('licenses').upsert(
-        {
-          name: lic.name,
-          license_url: lic.license_url || '',
-          attribution_required: lic.attribution_required || false,
-          commercial_use_allowed: lic.commercial_use_allowed !== false,
-        },
-        { onConflict: 'name' }
-      );
-      if (error) errors.push(`License ${lic.name}: ${error.message}`);
-      else licensesSynced++;
-    }
-
-    // 4. Sync SVG Assets (in batches of 25)
-    const allAssets = dbStore.getSvgAssets({ limit: 1000 }).items;
-    const batchSize = 25;
-
-    for (let i = 0; i < allAssets.length; i += batchSize) {
-      const batch = allAssets.slice(i, i + batchSize);
-      const rows = batch.map((a) => ({
-        name: a.name,
-        slug: a.slug,
-        description: a.description || '',
-        svg_content: a.svg_content,
-        width: a.width || 24,
-        height: a.height || 24,
-        view_box: a.view_box || '0 0 24 24',
-        file_size: a.file_size || 0,
-        status: a.status || 'published',
-        storage_path: a.storage_path || '',
-        thumbnail_path: a.thumbnail_path || '',
-      }));
-
-      const { error } = await client.from('svg_assets').upsert(rows, { onConflict: 'slug' });
-      if (error) {
-        errors.push(`Assets batch ${i}-${i + batch.length}: ${error.message}`);
-      } else {
-        assetsSynced += batch.length;
+    // The local store caps each page at 100; walk every page, including drafts.
+    const firstPage = dbStore.getSvgAssets({ status: 'all', page: 1, limit: 100 });
+    for (let page = 1; page <= firstPage.totalPages; page++) {
+      const assets = page === 1 ? firstPage.items : dbStore.getSvgAssets({ status: 'all', page, limit: 100 }).items;
+      for (const asset of assets) {
+        const { id, category, collection, license, tags, ...row } = asset as any;
+        row.category_id = mappings.categories.get(asset.category_id) || null;
+        row.collection_id = mappings.collections.get(asset.collection_id) || null;
+        row.license_id = mappings.licenses.get(asset.license_id) || null;
+        const { data, error } = await client.from('svg_assets').upsert(row, { onConflict: 'slug' }).select('id').single();
+        if (error || !data) { errors.push(`Asset ${asset.slug}: synchronization failed`); continue; }
+        const { error: deleteError } = await client.from('svg_asset_tags').delete().eq('asset_id', data.id);
+        const links = tags.filter((name: string) => tagIds.has(name)).map((name: string) => ({ asset_id: data.id, tag_id: tagIds.get(name)! }));
+        const linkResult = links.length ? await client.from('svg_asset_tags').insert(links) : { error: null };
+        if (deleteError || linkResult.error) errors.push(`Asset ${asset.slug}: tag synchronization failed`);
+        else assetsSynced++;
       }
     }
   } catch (err: any) {
